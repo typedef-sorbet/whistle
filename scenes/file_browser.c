@@ -11,7 +11,9 @@ void file_browser_browser_callback(void* _context) {
         "file_browser_browser_callback, context->selected_file = %s",
         furi_string_get_cstr(context->selected_file));
 
-    scene_manager_next_scene(context->scene_manager, SCENE_Options);
+    // NOTE not using next_scene bc there's some jank around how that affects the scene stack;
+    // the behavior caused by simulating a back event makes more sense IMO
+    scene_manager_handle_back_event(context->scene_manager);
 }
 
 bool file_browser_browser_item_callback(

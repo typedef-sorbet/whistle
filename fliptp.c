@@ -97,6 +97,8 @@ fliptp_context* context_alloc() {
     context->frequency = 432000000;
     furi_string_reset(context->selected_file);
 
+    subghz_setting_load(context->subghz_settings, EXT_PATH("subghz/assets/setting_user"));
+
     return context;
 
 err_gui:

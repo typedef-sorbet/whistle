@@ -25,7 +25,18 @@ uint8_t options_next_frequency(const uint32_t value, void* _context) {
 }
 
 void options_change_frequency_callback(VariableItem* item) {
-    (void)item;
+    fliptp_context* context = (fliptp_context*)variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+
+    char text_buf[10] = {0};
+    snprintf(
+        text_buf,
+        sizeof(text_buf),
+        "%lu.%02lu",
+        subghz_setting_get_frequency(context->subghz_settings, index) / 1000000,
+        (subghz_setting_get_frequency(context->subghz_settings, index) % 1000000) / 10000);
+    variable_item_set_current_value_text(item, text_buf);
+    context->frequency = subghz_setting_get_frequency(context->subghz_settings, index);
 }
 
 void options_change_encryption_callback(VariableItem* item) {
