@@ -1,0 +1,9 @@
+App(
+    appid="fliptp",
+    name="Flipper File Transfer",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="fliptp_main",
+    requires=["gui", "subghz", "nfc"],
+    stack_size=8 * 1024,
+    fap_category="Sub-GHz",
+)
