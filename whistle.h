@@ -11,30 +11,30 @@
 #ifndef FLIPTP_H
 #define FLIPTP_H
 
-#define TAG               "fliptp"
+#define TAG               "whistle"
 #define TRACE             FURI_LOG_T(TAG, __FUNCTION__)
 // Note: using this is probably bad practice
-#define CONTEXT_CAST(CTX) fliptp_context* context = (fliptp_context*)CTX
+#define CONTEXT_CAST(CTX) whistle_context* context = (whistle_context*)CTX
 
 typedef enum {
     SCENE_MainMenu,
     SCENE_Options,
     SCENE_FileBrowser,
     SCENE_count
-} fliptp_scene_id;
+} whistle_scene_id;
 
 typedef enum {
     VIEW_MainMenu,
     VIEW_Options,
     VIEW_FileBrowser,
     VIEW_count
-} fliptp_view_id;
+} whistle_view_id;
 
 typedef enum {
     MODE_Sending,
     MODE_Receiving,
     MODE_count
-} fliptp_mode;
+} whistle_mode;
 
 typedef struct {
     // GUI stuff
@@ -46,13 +46,13 @@ typedef struct {
     FileBrowser* file_browser;
 
     // Configuration
-    fliptp_mode mode;
+    whistle_mode mode;
     bool encryption;
     uint32_t frequency;
     FuriString* selected_file;
     SubGhzSetting* subghz_settings;
 
     // ...
-} fliptp_context;
+} whistle_context;
 
 #endif // FLIPTP_H

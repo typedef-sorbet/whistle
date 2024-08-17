@@ -1,10 +1,10 @@
 #include <scenes/file_browser.h>
-#include <fliptp.h>
+#include <whistle.h>
 
 void file_browser_browser_callback(void* _context) {
     TRACE;
 
-    fliptp_context* context = (fliptp_context*)_context;
+    whistle_context* context = (whistle_context*)_context;
 
     FURI_LOG_D(
         TAG,
@@ -36,7 +36,7 @@ void file_browser_on_enter(void* _context) {
     TRACE;
     furi_assert(_context);
 
-    fliptp_context* context = (fliptp_context*)_context;
+    whistle_context* context = (whistle_context*)_context;
 
     file_browser_configure(
         context->file_browser,
@@ -63,7 +63,7 @@ bool file_browser_on_event(void* _context, SceneManagerEvent event) {
     (void)_context;
     // (void)event;
 
-    // fliptp_context* context = (fliptp_context*)_context;
+    // whistle_context* context = (whistle_context*)_context;
 
     bool consumed = false;
 
@@ -88,7 +88,7 @@ void file_browser_on_exit(void* _context) {
     TRACE;
     furi_assert(_context);
 
-    fliptp_context* context = (fliptp_context*)_context;
+    whistle_context* context = (whistle_context*)_context;
 
     file_browser_stop(context->file_browser);
 }

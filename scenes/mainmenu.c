@@ -1,13 +1,13 @@
 #include <scenes/mainmenu.h>
 
-#include <fliptp.h>
+#include <whistle.h>
 
 void mainmenu_selection_callback(void* _context, uint32_t choice) {
     TRACE;
 
     FURI_LOG_T(TAG, __FUNCTION__);
 
-    fliptp_context* context = (fliptp_context*)_context;
+    whistle_context* context = (whistle_context*)_context;
 
     switch(choice) {
     case OPTION_MainMenu_SendFile:
@@ -26,7 +26,7 @@ void mainmenu_selection_callback(void* _context, uint32_t choice) {
 void mainmenu_on_enter(void* _context) {
     TRACE;
 
-    fliptp_context* context = (fliptp_context*)_context;
+    whistle_context* context = (whistle_context*)_context;
 
     menu_reset(context->menu);
 
@@ -55,7 +55,7 @@ bool mainmenu_on_event(void* _context, SceneManagerEvent event) {
     // (void)_context;
     // (void)event;
 
-    fliptp_context* context = (fliptp_context*)_context;
+    whistle_context* context = (whistle_context*)_context;
 
     bool consumed = false;
 
@@ -89,6 +89,6 @@ bool mainmenu_on_event(void* _context, SceneManagerEvent event) {
 void mainmenu_on_exit(void* _context) {
     TRACE;
 
-    fliptp_context* context = (fliptp_context*)_context;
+    whistle_context* context = (whistle_context*)_context;
     menu_reset(context->menu);
 }

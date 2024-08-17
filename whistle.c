@@ -1,31 +1,31 @@
-#include <fliptp.h>
-#include <fliptp_i.h>
+#include <whistle.h>
+#include <whistle_i.h>
 
-bool fliptp_custom_event_cb(void* _context, uint32_t event) {
+bool whistle_custom_event_cb(void* _context, uint32_t event) {
     TRACE;
 
-    fliptp_context* context = (fliptp_context*)_context;
+    whistle_context* context = (whistle_context*)_context;
     return scene_manager_handle_custom_event(context->scene_manager, event);
 }
 
-bool fliptp_custom_navigation_event_callback(void* _context) {
+bool whistle_custom_navigation_event_callback(void* _context) {
     TRACE;
 
-    fliptp_context* context = (fliptp_context*)_context;
+    whistle_context* context = (whistle_context*)_context;
 
     return scene_manager_handle_back_event(context->scene_manager);
 }
 
-fliptp_context* context_alloc() {
+whistle_context* context_alloc() {
     TRACE;
 
-    fliptp_context* context = malloc(sizeof(fliptp_context));
+    whistle_context* context = malloc(sizeof(whistle_context));
 
     if(NULL == context) {
         goto err_context;
     }
 
-    context->scene_manager = scene_manager_alloc(&fliptp_scene_manager_handlers, context);
+    context->scene_manager = scene_manager_alloc(&whistle_scene_manager_handlers, context);
     if(NULL == context->scene_manager) {
         goto err_scene_manager;
     }
@@ -76,10 +76,10 @@ fliptp_context* context_alloc() {
 
     view_dispatcher_set_event_callback_context(context->view_dispatcher, context);
 
-    view_dispatcher_set_custom_event_callback(context->view_dispatcher, fliptp_custom_event_cb);
+    view_dispatcher_set_custom_event_callback(context->view_dispatcher, whistle_custom_event_cb);
 
     view_dispatcher_set_navigation_event_callback(
-        context->view_dispatcher, fliptp_custom_navigation_event_callback);
+        context->view_dispatcher, whistle_custom_navigation_event_callback);
 
     view_dispatcher_attach_to_gui(
         context->view_dispatcher, context->gui, ViewDispatcherTypeFullscreen);
@@ -129,7 +129,7 @@ err_context:
     return NULL;
 }
 
-void context_free(fliptp_context* context) {
+void context_free(whistle_context* context) {
     TRACE;
 
     scene_manager_free(context->scene_manager);
@@ -146,10 +146,10 @@ void context_free(fliptp_context* context) {
     free(context);
 }
 
-int32_t fliptp_main() {
+int32_t whistle_main() {
     TRACE;
 
-    fliptp_context* context = context_alloc();
+    whistle_context* context = context_alloc();
 
     if(NULL == context) {
         FURI_LOG_E(TAG, "context_alloc failed!\n");

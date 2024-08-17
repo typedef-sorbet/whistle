@@ -1,8 +1,8 @@
 App(
-    appid="fliptp",
-    name="Flipper File Transfer",
+    appid="whistle",
+    name="Whistle: Flipper File Transfer",
     apptype=FlipperAppType.EXTERNAL,
-    entry_point="fliptp_main",
+    entry_point="whistle_main",
     requires=["gui", "subghz", "nfc"],
     stack_size=8 * 1024,
     fap_category="Sub-GHz",

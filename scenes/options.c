@@ -1,5 +1,5 @@
 #include <scenes/options.h>
-#include <fliptp.h>
+#include <whistle.h>
 
 static const char* const yesno_text[2] = {"No", "Yes"};
 
@@ -9,7 +9,7 @@ uint8_t options_next_frequency(const uint32_t value, void* _context) {
 
     furi_assert(_context);
 
-    fliptp_context* context = (fliptp_context*)_context;
+    whistle_context* context = (whistle_context*)_context;
     uint8_t index = 0;
 
     for(uint8_t i = 0; i < subghz_setting_get_frequency_count(context->subghz_settings); ++i) {
@@ -25,7 +25,7 @@ uint8_t options_next_frequency(const uint32_t value, void* _context) {
 }
 
 void options_change_frequency_callback(VariableItem* item) {
-    fliptp_context* context = (fliptp_context*)variable_item_get_context(item);
+    whistle_context* context = (whistle_context*)variable_item_get_context(item);
     uint8_t index = variable_item_get_current_value_index(item);
 
     char text_buf[10] = {0};
@@ -40,7 +40,7 @@ void options_change_frequency_callback(VariableItem* item) {
 }
 
 void options_change_encryption_callback(VariableItem* item) {
-    fliptp_context* context = (fliptp_context*)variable_item_get_context(item);
+    whistle_context* context = (whistle_context*)variable_item_get_context(item);
     uint8_t index = variable_item_get_current_value_index(item);
 
     variable_item_set_current_value_text(item, yesno_text[index]);
@@ -54,7 +54,7 @@ void options_list_enter_callback(void* _context, uint32_t idx) {
 
     FURI_LOG_D(TAG, "options_list_enter_callback with index %ld", idx);
 
-    fliptp_context* context = (fliptp_context*)_context;
+    whistle_context* context = (whistle_context*)_context;
 
     if(idx == INDEX_Options_File) {
         scene_manager_handle_custom_event(
@@ -65,7 +65,7 @@ void options_list_enter_callback(void* _context, uint32_t idx) {
 void options_on_enter(void* _context) {
     TRACE;
 
-    fliptp_context* context = (fliptp_context*)_context;
+    whistle_context* context = (whistle_context*)_context;
 
     // TODO need to restore settings on entry
 
@@ -117,7 +117,7 @@ void options_on_enter(void* _context) {
 bool options_on_event(void* _context, SceneManagerEvent event) {
     TRACE;
 
-    fliptp_context* context = (fliptp_context*)_context;
+    whistle_context* context = (whistle_context*)_context;
 
     (void)context;
 
@@ -146,7 +146,7 @@ bool options_on_event(void* _context, SceneManagerEvent event) {
 void options_on_exit(void* _context) {
     TRACE;
 
-    fliptp_context* context = (fliptp_context*)_context;
+    whistle_context* context = (whistle_context*)_context;
 
     variable_item_list_reset(context->option_list);
 }
