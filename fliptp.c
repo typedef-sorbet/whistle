@@ -58,7 +58,6 @@ fliptp_context* context_alloc() {
     if(NULL == context->selected_file) {
         goto err_string;
     }
-    furi_string_reset(context->selected_file);
 
     // File browser setup
     context->file_browser = file_browser_alloc(context->selected_file);
@@ -92,6 +91,11 @@ fliptp_context* context_alloc() {
         context->view_dispatcher, VIEW_Options, variable_item_list_get_view(context->option_list));
     view_dispatcher_add_view(
         context->view_dispatcher, VIEW_FileBrowser, file_browser_get_view(context->file_browser));
+
+    // Set sane defaults for options
+    context->encryption = false;
+    context->frequency = 432000000;
+    furi_string_reset(context->selected_file);
 
     return context;
 

@@ -3,7 +3,15 @@
 
 void file_browser_browser_callback(void* _context) {
     TRACE;
-    (void)_context;
+
+    fliptp_context* context = (fliptp_context*)_context;
+
+    FURI_LOG_D(
+        TAG,
+        "file_browser_browser_callback, context->selected_file = %s",
+        furi_string_get_cstr(context->selected_file));
+
+    scene_manager_next_scene(context->scene_manager, SCENE_Options);
 }
 
 bool file_browser_browser_item_callback(
@@ -16,13 +24,8 @@ bool file_browser_browser_item_callback(
 
     (void)icon;
     (void)item_name;
-
-    fliptp_context* context = (fliptp_context*)_context;
-
-    // TODO is this what I'm supposed to do? or does returning true automatically do this?
-    context->selected_file = path;
-
-    // file_browser_on_exit(context);
+    (void)path;
+    (void)_context;
 
     return true;
 }
@@ -86,6 +89,4 @@ void file_browser_on_exit(void* _context) {
     fliptp_context* context = (fliptp_context*)_context;
 
     file_browser_stop(context->file_browser);
-
-    scene_manager_next_scene(context->scene_manager, SCENE_Options);
 }
