@@ -6,4 +6,5 @@ App(
     requires=["gui", "subghz", "nfc"],
     stack_size=8 * 1024,
     fap_category="Sub-GHz",
+    fap_icon_assets="assets",
 )

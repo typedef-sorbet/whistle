@@ -7,6 +7,12 @@
 #include <gui/modules/file_browser.h>
 #include <subghz/subghz_setting.h>
 
+#include <helpers/subghz_worker.h>
+
+#include <gui/icon_i.h>
+#include <enums.h>
+#include "whistle_icons.h"
+
 #pragma once
 #ifndef FLIPTP_H
 #define FLIPTP_H
@@ -15,26 +21,6 @@
 #define TRACE             FURI_LOG_T(TAG, __FUNCTION__)
 // Note: using this is probably bad practice
 #define CONTEXT_CAST(CTX) whistle_context* context = (whistle_context*)CTX
-
-typedef enum {
-    SCENE_MainMenu,
-    SCENE_Options,
-    SCENE_FileBrowser,
-    SCENE_count
-} whistle_scene_id;
-
-typedef enum {
-    VIEW_MainMenu,
-    VIEW_Options,
-    VIEW_FileBrowser,
-    VIEW_count
-} whistle_view_id;
-
-typedef enum {
-    MODE_Sending,
-    MODE_Receiving,
-    MODE_count
-} whistle_mode;
 
 typedef struct {
     // GUI stuff
@@ -51,6 +37,9 @@ typedef struct {
     uint32_t frequency;
     FuriString* selected_file;
     SubGhzSetting* subghz_settings;
+
+    // Thread worker(s)
+    subghz_worker* subghz_worker;
 
     // ...
 } whistle_context;

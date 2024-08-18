@@ -33,7 +33,7 @@ void mainmenu_on_enter(void* _context) {
     menu_add_item(
         context->menu,
         "Send File",
-        NULL,
+        &A_send_file,
         OPTION_MainMenu_SendFile,
         mainmenu_selection_callback,
         context);
@@ -41,7 +41,7 @@ void mainmenu_on_enter(void* _context) {
     menu_add_item(
         context->menu,
         "Receive File",
-        NULL,
+        &A_receive_file,
         OPTION_MainMenu_ReceiveFile,
         mainmenu_selection_callback,
         context);
