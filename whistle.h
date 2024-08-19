@@ -5,6 +5,7 @@
 #include <gui/modules/menu.h>
 #include <gui/modules/variable_item_list.h>
 #include <gui/modules/file_browser.h>
+#include <gui/modules/loading.h>
 #include <subghz/subghz_setting.h>
 
 #include <helpers/subghz_worker.h>
@@ -27,9 +28,12 @@ typedef struct {
     Gui* gui;
     SceneManager* scene_manager;
     ViewDispatcher* view_dispatcher;
+
+    // View modules
     Menu* menu;
     VariableItemList* option_list;
     FileBrowser* file_browser;
+    Loading* loading_screen;
 
     // Configuration
     whistle_mode mode;

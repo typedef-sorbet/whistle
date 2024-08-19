@@ -59,6 +59,8 @@ void options_list_enter_callback(void* _context, uint32_t idx) {
     if(idx == INDEX_Options_File) {
         scene_manager_handle_custom_event(
             context->scene_manager, EVENT_Options_ChooseFileSelected);
+    } else if(idx == INDEX_Options_Start) {
+        scene_manager_handle_custom_event(context->scene_manager, EVENT_Options_Start);
     }
 }
 
@@ -66,8 +68,6 @@ void options_on_enter(void* _context) {
     TRACE;
 
     whistle_context* context = (whistle_context*)_context;
-
-    // TODO need to restore settings on entry
 
     // Stolen mostly from the weather station app
     VariableItem* item = NULL;
@@ -103,13 +103,16 @@ void options_on_enter(void* _context) {
     variable_item_set_current_value_text(item, context->encryption ? "Yes" : "No");
 
     // Choose file
+    // TODO need some "Save As" option for receive mode
 
-    if(context->mode == MODE_Sending) {
-        item = variable_item_list_add(context->option_list, "File", 1, NULL, context);
-        variable_item_set_current_value_text(item, furi_string_get_cstr(context->selected_file));
-        variable_item_list_set_enter_callback(
-            context->option_list, options_list_enter_callback, context);
-    }
+    item = variable_item_list_add(context->option_list, "File", 1, NULL, context);
+    variable_item_set_current_value_text(item, furi_string_get_cstr(context->selected_file));
+    variable_item_list_set_enter_callback(
+        context->option_list, options_list_enter_callback, context);
+
+    // Start button
+
+    item = variable_item_list_add(context->option_list, "Start", 1, NULL, context);
 
     view_dispatcher_switch_to_view(context->view_dispatcher, VIEW_Options);
 }
@@ -128,6 +131,10 @@ bool options_on_event(void* _context, SceneManagerEvent event) {
         switch(event.event) {
         case EVENT_Options_ChooseFileSelected:
             scene_manager_next_scene(context->scene_manager, SCENE_FileBrowser);
+            consumed = true;
+            break;
+        case EVENT_Options_Start:
+            scene_manager_next_scene(context->scene_manager, SCENE_Transfer);
             consumed = true;
             break;
         default:

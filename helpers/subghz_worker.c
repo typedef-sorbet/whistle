@@ -61,7 +61,22 @@ static int32_t subghz_worker_thread_sender(void* _context) {
     subghz_worker* instance = (subghz_worker*)_context;
 
     while(instance->worker_running) {
-        // TODO put messages onto the queue here?
+        // file should already be open
+        unsigned char readbuf[WHISTLE_PACKET_DATA_MAX_SIZE];
+        size_t readlen = stream_read(instance->file_stream, readbuf, sizeof(readbuf));
+
+        if(readlen == 0) {
+            instance->worker_running = false;
+            continue;
+        }
+
+        whistle_packet packet = subghz_worker_pack(readbuf, readlen, instance->offset);
+
+        instance->offset += readlen;
+
+        subghz_worker_write(instance, (uint8_t*)&packet, sizeof(packet));
+
+        furi_delay_ms(10);
     }
 
     FURI_LOG_I(TAG, "SubGhz sender worker stop");
@@ -95,10 +110,12 @@ subghz_worker_event subghz_worker_get_event(subghz_worker* instance) {
 
 // TODO it's probably more idiomatic to have setters for these, but whatever
 // TODO should also do error checking here
-subghz_worker* subghz_worker_alloc(whistle_mode mode, FuriString* path) {
+subghz_worker*
+    subghz_worker_alloc(const SubGhzDevice* device, whistle_mode mode, FuriString* path) {
     subghz_worker* instance = malloc(sizeof(subghz_worker));
 
     instance->mode = mode;
+    instance->subghz_device = device;
 
     instance->path = furi_string_alloc_set(path);
     instance->storage = furi_record_open(RECORD_STORAGE);
@@ -150,6 +167,7 @@ static void subghz_worker_handle_have_read(void* context) {
     // TODO this is probably pretty inefficient to do every read, is there a better way?
     for(size_t i = 0; i < sizeof(instance->packet_buffer) - 4; ++i) {
         uint32_t sentinel_window;
+        // Is this any faster/slower than indexing into packet_buffer and shifting?
         memcpy(&sentinel_window, &instance->packet_buffer[i], sizeof(uint32_t));
         if(sentinel_window == WHISTLE_PACKET_SENTINEL) {
             // we're done! sound the alarm!
@@ -166,13 +184,13 @@ static void subghz_worker_handle_have_read(void* context) {
     furi_message_queue_put(instance->event_queue, &event, FuriWaitForever);
 }
 
-bool subghz_worker_start(subghz_worker* instance, const SubGhzDevice* device, uint32_t frequency) {
+bool subghz_worker_start(subghz_worker* instance, uint32_t frequency) {
     furi_assert(instance);
     furi_assert(!instance->worker_running);
 
     bool res = false;
 
-    if(subghz_tx_rx_worker_start(instance->subghz_txrx, device, frequency)) {
+    if(subghz_tx_rx_worker_start(instance->subghz_txrx, instance->subghz_device, frequency)) {
         furi_message_queue_reset(instance->event_queue);
 
         if(instance->mode == MODE_Receiving) {
@@ -182,6 +200,9 @@ bool subghz_worker_start(subghz_worker* instance, const SubGhzDevice* device, ui
 
         instance->worker_running = true;
         instance->last_time_rx_data = 0;
+        instance->offset = 0;
+        instance->packet_buffer_ptr = 0;
+
         if(file_stream_open(
                instance->file_stream,
                furi_string_get_cstr(instance->path),
@@ -242,7 +263,23 @@ size_t subghz_worker_read(subghz_worker* instance, uint8_t* data, size_t size) {
 
 bool subghz_worker_write(subghz_worker* instance, uint8_t* data, size_t size) {
     furi_assert(instance);
-    return subghz_tx_rx_worker_write(instance->subghz_txrx, data, size);
+
+    bool res = subghz_tx_rx_worker_write(instance->subghz_txrx, data, size);
+
+    if(res) {
+        char hexbuf[(4 * size) + 1];
+        memset(hexbuf, 0x00, sizeof(hexbuf));
+
+        for(size_t i = 0; i < size; ++i) {
+            snprintf(&hexbuf[2 * i], 4, "%02x ", (uint8_t)data[i]);
+        }
+
+        FURI_LOG_D(TAG, "Wrote %d bytes: 0x%s", size, hexbuf);
+    } else {
+        FURI_LOG_E(TAG, "Failed to write %d bytes", size);
+    }
+
+    return res;
 }
 
 whistle_packet subghz_worker_pack(unsigned char* data, size_t size, uint32_t offset) {

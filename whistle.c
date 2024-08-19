@@ -65,6 +65,11 @@ whistle_context* context_alloc() {
         goto err_file_browser;
     }
 
+    context->loading_screen = loading_alloc();
+    if(NULL == context->loading_screen) {
+        goto err_loading_screen;
+    }
+
     // Gui setup
     context->gui = furi_record_open(RECORD_GUI);
     if(NULL == context->gui) {
@@ -91,6 +96,8 @@ whistle_context* context_alloc() {
         context->view_dispatcher, VIEW_Options, variable_item_list_get_view(context->option_list));
     view_dispatcher_add_view(
         context->view_dispatcher, VIEW_FileBrowser, file_browser_get_view(context->file_browser));
+    view_dispatcher_add_view(
+        context->view_dispatcher, VIEW_Transfer, loading_get_view(context->loading_screen));
 
     // Set sane defaults for options
     context->encryption = false;
@@ -102,6 +109,9 @@ whistle_context* context_alloc() {
     return context;
 
 err_gui:
+    loading_free(context->loading_screen);
+
+err_loading_screen:
     file_browser_free(context->file_browser);
 
 err_file_browser:

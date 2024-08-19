@@ -42,17 +42,21 @@ typedef struct {
     Storage* storage;
     FuriString* path;
     Stream* file_stream;
+    size_t offset;
+
+    const SubGhzDevice* subghz_device;
 
     // shouldn't need Cli pointer, right?
 } subghz_worker;
 
 subghz_worker_event subghz_worker_get_event(subghz_worker* instance);
 
-subghz_worker* subghz_worker_alloc(whistle_mode mode, FuriString* path);
+subghz_worker*
+    subghz_worker_alloc(const SubGhzDevice* device, whistle_mode mode, FuriString* path);
 
 void subghz_worker_free(subghz_worker* instance);
 
-bool subghz_worker_start(subghz_worker* instance, const SubGhzDevice* device, uint32_t frequency);
+bool subghz_worker_start(subghz_worker* instance, uint32_t frequency);
 
 void subghz_worker_thread_stop(subghz_worker* instance);
 
@@ -65,6 +69,8 @@ size_t subghz_worker_available(subghz_worker* instance);
 size_t subghz_worker_read(subghz_worker* instance, uint8_t* data, size_t size);
 
 void subghz_worker_pop_packet(subghz_worker* instance, whistle_packet* packet_ptr);
+
+whistle_packet subghz_worker_pack(unsigned char* data, size_t size, uint32_t offset);
 
 bool subghz_worker_write(subghz_worker* instance, uint8_t* data, size_t size);
 
