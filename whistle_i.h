@@ -1,3 +1,7 @@
+#pragma once
+#ifndef FLIPTP_I_H
+#define FLIPTP_I_H
+
 #include <whistle.h>
 
 // Include all scenes/*.h here
@@ -5,10 +9,6 @@
 #include <scenes/options.h>
 #include <scenes/file_browser.h>
 #include <scenes/transfer.h>
-
-#pragma once
-#ifndef FLIPTP_I_H
-#define FLIPTP_I_H
 
 // These should be ordered by the scene enum
 void (*const whistle_scene_on_enter_handlers[])(

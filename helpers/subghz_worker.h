@@ -1,12 +1,12 @@
+#pragma once
+#ifndef SUBGHZ_WORKER_H
+#define SUBGHZ_WORKER_H
+
 #include <furi/core/thread.h>
 #include <lib/subghz/subghz_tx_rx_worker.h>
 #include <lib/toolbox/stream/file_stream.h>
 #include <enums.h>
 #include <protocol.h>
-
-#pragma once
-#ifndef SUBGHZ_WORKER_H
-#define SUBGHZ_WORKER_H
 
 typedef enum {
     EVENT_SubGhzWorker_NoEvent,
@@ -34,10 +34,7 @@ typedef struct {
     FuriMessageQueue* event_queue;
     uint32_t last_time_rx_data;
 
-    // TODO rightsize
-    unsigned char packet_buffer[2 * WHISTLE_PACKET_MAX_SIZE];
-    size_t packet_buffer_ptr;
-    size_t sentinel_offset;
+    whistle_protocol_worker* protocol_worker;
 
     Storage* storage;
     FuriString* path;
@@ -68,10 +65,14 @@ size_t subghz_worker_available(subghz_worker* instance);
 
 size_t subghz_worker_read(subghz_worker* instance, uint8_t* data, size_t size);
 
-void subghz_worker_pop_packet(subghz_worker* instance, whistle_packet* packet_ptr);
-
-whistle_packet subghz_worker_pack(unsigned char* data, size_t size, uint32_t offset);
-
 bool subghz_worker_write(subghz_worker* instance, uint8_t* data, size_t size);
+
+void subghz_worker_handle_data(
+    subghz_worker* instance,
+    uint16_t sequence_num,
+    unsigned char data[WHISTLE_PACKET_DATA_MAX_SIZE],
+    size_t size);
+
+void subghz_worker_handle_done(subghz_worker* instance);
 
 #endif // SUBGHZ_WORKER_H

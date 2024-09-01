@@ -1,3 +1,7 @@
+#pragma once
+#ifndef FLIPTP_H
+#define FLIPTP_H
+
 #include <furi/core/string.h>
 #include <gui/gui.h>
 #include <gui/scene_manager.h>
@@ -13,10 +17,6 @@
 #include <gui/icon_i.h>
 #include <enums.h>
 #include "whistle_icons.h"
-
-#pragma once
-#ifndef FLIPTP_H
-#define FLIPTP_H
 
 #define TAG               "whistle"
 #define TRACE             FURI_LOG_T(TAG, __FUNCTION__)

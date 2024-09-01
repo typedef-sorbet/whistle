@@ -1,9 +1,9 @@
-#include <gui/scene_manager.h>
-#include <subghz/subghz_setting.h>
-
 #pragma once
 #ifndef OPTIONS_H
 #define OPTIONS_H
+
+#include <gui/scene_manager.h>
+#include <subghz/subghz_setting.h>
 
 // Variable option list index
 typedef enum {

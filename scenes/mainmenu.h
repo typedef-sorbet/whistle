@@ -1,8 +1,8 @@
-#include <gui/scene_manager.h>
-
 #pragma once
 #ifndef MAINMENU_H
 #define MAINMENU_H
+
+#include <gui/scene_manager.h>
 
 void mainmenu_on_enter(void*);
 bool mainmenu_on_event(void*, SceneManagerEvent);
