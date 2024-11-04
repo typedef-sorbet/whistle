@@ -70,7 +70,9 @@ size_t subghz_worker_read(subghz_worker* instance, uint8_t* data, size_t size);
 
 void subghz_worker_pop_packet(subghz_worker* instance, whistle_packet* packet_ptr);
 
-whistle_packet subghz_worker_pack(unsigned char* data, size_t size, uint32_t offset);
+whistle_packet subghz_worker_pack_data(unsigned char* data, size_t size, uint32_t offset);
+
+whistle_packet subghz_worker_pack_preamble(uint32_t file_size, char *file_name, size_t file_name_size);
 
 bool subghz_worker_write(subghz_worker* instance, uint8_t* data, size_t size);
 
