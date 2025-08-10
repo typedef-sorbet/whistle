@@ -74,6 +74,8 @@ whistle_packet subghz_worker_pack_data(unsigned char* data, size_t size, uint32_
 
 whistle_packet subghz_worker_pack_preamble(uint32_t file_size, char *file_name, size_t file_name_size);
 
+whistle_packet subghz_worker_pack_postamble();
+
 bool subghz_worker_write(subghz_worker* instance, uint8_t* data, size_t size);
 
 #endif // SUBGHZ_WORKER_H

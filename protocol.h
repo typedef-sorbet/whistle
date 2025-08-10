@@ -13,6 +13,7 @@
 typedef enum {
     WHISTLE_TYPE_PREAMBLE,
     WHISTLE_TYPE_DATA,
+    WHISTLE_TYPE_POSTAMBLE,
     WHISTLE_TYPE_count
 } whistle_packet_type;
 
@@ -20,6 +21,10 @@ typedef struct {
     uint32_t file_size; // in bytes, restricts us to 2^32 bytes or approx. 4.2 GB
     char file_name[WHISTLE_PACKET_DATA_MAX_SIZE - sizeof(uint32_t)];
 } whistle_preamble;
+
+typedef struct {
+    char alldone[7];
+} whistle_postamble;
 
 typedef struct {
     uint32_t offset;
@@ -30,6 +35,7 @@ typedef struct {
 typedef union {
     whistle_preamble preamble;
     whistle_data data_chunk;
+    whistle_postamble postamble;
 } whistle_packet_inner;
 
 typedef struct {

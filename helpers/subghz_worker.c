@@ -105,8 +105,12 @@ static int32_t subghz_worker_thread_sender(void* _context) {
 
         subghz_worker_write(instance, (uint8_t*)&packet, sizeof(packet));
 
-        furi_delay_ms(10);
+        furi_delay_ms(30);
     }
+
+    FURI_LOG_I(TAG, "File send complete, sending postamble");
+    whistle_packet postamble = subghz_worker_pack_postamble();
+    subghz_worker_write(instance, (uint8_t*)&postamble, sizeof(postamble));
 
     FURI_LOG_I(TAG, "SubGhz sender worker stop");
     return 0;
@@ -140,16 +144,45 @@ static int32_t subghz_worker_thread_receiver(void* _context) {
 
                 switch(packet.packet_type) {
                 case WHISTLE_TYPE_PREAMBLE:
+                    whistle_preamble preamble = packet.inner.preamble;
+                    FURI_LOG_I(TAG, "Received whistle preamble, file size %lu bytes, file name %s", preamble.file_size, preamble.file_name);
+                    FuriString* filename = furi_string_alloc_set_str(preamble.file_name);
+
+                    size_t basename_idx = furi_string_search_rchar(filename, '/');
+
+                    if (basename_idx != FURI_STRING_FAILURE) {
+                        furi_string_right(filename, basename_idx + 1);
+                    }
+
+                    furi_string_set_str(instance->path, EXT_PATH("whistle_recv/"));
+                    furi_string_cat(instance->path, filename);
+                    furi_string_free(filename);
+
+                    FURI_LOG_D(TAG, "Full receive path: %s", furi_string_get_cstr(instance->path));
+
+                    if (!file_stream_open(instance->file_stream, furi_string_get_cstr(instance->path), FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
+                        FURI_LOG_E(TAG, "Unable to open file %s for writing", furi_string_get_cstr(instance->path));
+                    }
+
                     break;
 
                 case WHISTLE_TYPE_DATA:
+                    whistle_data data = packet.inner.data_chunk;
+                    FURI_LOG_I(TAG, "Received whistle data chunk, writing to file");
+
+                    stream_write(instance->file_stream, (const uint8_t *)&data, sizeof(whistle_data));
                     break;
+
+                case WHISTLE_TYPE_POSTAMBLE:
+                    FURI_LOG_I(TAG, "Received postamble, file transfer complete");
+
+                    // Cleanup
+                    file_stream_close(instance->file_stream);
 
                 default:
                     break;
                 }
 
-                // TODO write the got-dang data to disk
                 break;
             default:
                 // no-op
@@ -306,32 +339,31 @@ bool subghz_worker_start(subghz_worker* instance, uint32_t frequency) {
     if(subghz_tx_rx_worker_start(instance->subghz_txrx, instance->subghz_device, frequency)) {
         furi_message_queue_reset(instance->event_queue);
 
-        if(instance->mode == MODE_Receiving) {
-            FURI_LOG_D(TAG, "Registering subghz receiver read callback");
-            subghz_tx_rx_worker_set_callback_have_read(
-                instance->subghz_txrx, subghz_worker_handle_have_read, instance);
-        }
-
         instance->worker_running = true;
         instance->last_time_rx_data = 0;
         instance->offset = 0;
         instance->packet_buffer_ptr = 0;
 
-        if(file_stream_open(
-               instance->file_stream,
-               furi_string_get_cstr(instance->path),
-               instance->mode == MODE_Sending ? FSAM_READ : FSAM_WRITE,
-               instance->mode == MODE_Sending ? FSOM_OPEN_EXISTING : FSOM_CREATE_ALWAYS)) {
-            furi_thread_start(instance->thread);
+        if(instance->mode == MODE_Receiving) {
+            FURI_LOG_D(TAG, "Registering subghz receiver read callback");
+            subghz_tx_rx_worker_set_callback_have_read(
+                instance->subghz_txrx, subghz_worker_handle_have_read, instance);
 
-            res = true;
-        } else {
-            FURI_LOG_E(
-                TAG,
-                "Unable to open file %s for %s",
-                furi_string_get_cstr(instance->path),
-                instance->mode == MODE_Sending ? "reading" : "writing");
+            // If mode is receiving, defer file stream creation until we receive the preamble,
+            // that way we know what to call the file
+        } else {            
+            if (file_stream_open(instance->file_stream, furi_string_get_cstr(instance->path), FSAM_READ, FSOM_OPEN_EXISTING)) {
+                furi_thread_start(instance->thread);
+                res = true;
+            } else {
+                FURI_LOG_E(
+                    TAG,
+                    "Unable to open file %s for %s",
+                    furi_string_get_cstr(instance->path),
+                    instance->mode == MODE_Sending ? "reading" : "writing");
+            }
         }
+
     } else {
         FURI_LOG_E(TAG, "Unable to start subghz_tx_rx_worker");
     }
@@ -447,6 +479,24 @@ whistle_packet
 
     packet.inner.preamble.file_size = file_size;
     strncpy(packet.inner.preamble.file_name, file_name, file_name_size);
+
+    packet.sentinel = WHISTLE_PACKET_SENTINEL;
+
+    packet.packet_crc = crc32((unsigned char*)&packet, sizeof(packet));
+
+    return packet;
+}
+
+whistle_packet subghz_worker_pack_postamble() {
+    TRACE;
+
+    whistle_packet packet;
+
+    memset(&packet, 0x00, sizeof(packet));
+
+    packet.packet_type = WHISTLE_TYPE_POSTAMBLE;
+
+    memcpy(packet.inner.postamble.alldone, "ALLDONE", sizeof(packet.inner.postamble.alldone));
 
     packet.sentinel = WHISTLE_PACKET_SENTINEL;
 

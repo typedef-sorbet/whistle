@@ -14,5 +14,5 @@ void hexdump(const void *data, size_t len) {
         snprintf(&hexbuf[2 * i], 4, "%02x ", (uint8_t)datachars[i]);
     }
 
-    FURI_LOG_D(TAG, "0x%s", len, hexbuf);
+    FURI_LOG_D(TAG, "0x%s", hexbuf);
 }
