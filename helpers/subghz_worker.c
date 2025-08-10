@@ -136,6 +136,8 @@ static int32_t subghz_worker_thread_receiver(void* _context) {
                 continue;
             }
 
+            FURI_LOG_I(TAG, "Got SubGhzWorker event");
+
             switch(event.event) {
             case EVENT_SubGhzWorker_PacketReady:
                 whistle_packet packet;
@@ -158,7 +160,7 @@ static int32_t subghz_worker_thread_receiver(void* _context) {
                     furi_string_cat(instance->path, filename);
                     furi_string_free(filename);
 
-                    FURI_LOG_D(TAG, "Full receive path: %s", furi_string_get_cstr(instance->path));
+                    FURI_LOG_I(TAG, "Full receive path: %s", furi_string_get_cstr(instance->path));
 
                     if (!file_stream_open(instance->file_stream, furi_string_get_cstr(instance->path), FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
                         FURI_LOG_E(TAG, "Unable to open file %s for writing", furi_string_get_cstr(instance->path));
@@ -178,6 +180,7 @@ static int32_t subghz_worker_thread_receiver(void* _context) {
 
                     // Cleanup
                     file_stream_close(instance->file_stream);
+                    break;
 
                 default:
                     break;
@@ -285,7 +288,7 @@ static void subghz_worker_handle_have_read(void* context) {
         return;
     }
 
-    FURI_LOG_D(TAG, "Received %d bytes:", len);
+    FURI_LOG_D(TAG, "Received %d bytes", len);
     hexdump(buffer, len);
 
     // enshrining this dumbass piece of code as a cautionary tale against writing code at 1am
@@ -298,18 +301,9 @@ static void subghz_worker_handle_have_read(void* context) {
     hexdump(instance->packet_buffer, sizeof(instance->packet_buffer));
 
     // TODO this is probably pretty inefficient to do every read, is there a better way?
-    for(size_t i = 0; i < min(instance->packet_buffer_ptr, sizeof(instance->packet_buffer)) - 4; ++i) {
+    for(size_t i = 0; i < sizeof(instance->packet_buffer) - 4; ++i) {
         uint32_t sentinel_window = 0;
         memcpy(&sentinel_window, &instance->packet_buffer[i], sizeof(sentinel_window));
-
-        // FURI_LOG_D(
-        //     TAG, 
-        //     "searching for sentinel: 0x%02x%02x%02x%02x", 
-        //     (unsigned char)((sentinel_window >> 24) & 0xFF),
-        //     (unsigned char)((sentinel_window >> 16) & 0xFF),
-        //     (unsigned char)((sentinel_window >> 8)  & 0xFF),
-        //     (unsigned char)(sentinel_window         & 0xFF)
-        // );
 
         if(sentinel_window == WHISTLE_PACKET_SENTINEL || sentinel_window == WHISTLE_PACKET_SENTINEL_LE) {
             // we're done! sound the alarm!
@@ -532,4 +526,6 @@ void subghz_worker_pop_packet(subghz_worker* instance, whistle_packet* packet_pt
 
     FURI_LOG_D(TAG, "Packet buffer after roll:");
     hexdump(instance->packet_buffer, sizeof(instance->packet_buffer));
+
+    instance->packet_buffer_ptr -= sizeof(whistle_packet);
 }
