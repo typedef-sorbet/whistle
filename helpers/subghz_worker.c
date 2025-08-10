@@ -157,11 +157,14 @@ static int32_t subghz_worker_thread_receiver(void* _context) {
                         furi_string_right(filename, basename_idx + 1);
                     }
 
-                    furi_string_set_str(instance->path, EXT_PATH("whistle_recv/"));
+                    instance->path = furi_string_alloc_set_str(EXT_PATH("whistle_recv/"));
                     furi_string_cat(instance->path, filename);
-                    furi_string_free(filename);
 
                     FURI_LOG_I(TAG, "Full receive path: %s", furi_string_get_cstr(instance->path));
+
+                    // TODO: I don't know why the storage pointer is getting cleared by this point
+                    instance->storage = furi_record_open(RECORD_STORAGE);
+                    instance->file_stream = file_stream_alloc(instance->storage);
 
                     if (!file_stream_open(instance->file_stream, furi_string_get_cstr(instance->path), FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
                         FURI_LOG_E(TAG, "Unable to open file %s for writing", furi_string_get_cstr(instance->path));
@@ -228,10 +231,6 @@ subghz_worker*
     {
         instance->path = furi_string_alloc_set(path);
     }
-    else 
-    {
-        instance->path = furi_string_alloc_set_str(EXT_PATH("whistle_recv/tempfile"));
-    }
 
     instance->storage = furi_record_open(RECORD_STORAGE);
 
@@ -239,7 +238,7 @@ subghz_worker*
 
     // Create the receive directory
     // File alloc will happen later when we get the preamble
-    if (mode == MODE_Sending)
+    if (mode == MODE_Receiving)
     {
         storage_simply_mkdir(instance->storage, EXT_PATH("whistle_recv"));
     }
