@@ -87,7 +87,7 @@ static int32_t subghz_worker_thread_sender(void* _context) {
 
     subghz_worker_write(instance, (uint8_t*)&packet, sizeof(packet));
 
-    furi_delay_ms(30);
+    furi_delay_us(100000);
 
     while(instance->worker_running) {
         // file should already be open
@@ -105,7 +105,7 @@ static int32_t subghz_worker_thread_sender(void* _context) {
 
         subghz_worker_write(instance, (uint8_t*)&packet, sizeof(packet));
 
-        furi_delay_ms(30);
+        furi_delay_us(100000);
     }
 
     FURI_LOG_I(TAG, "File send complete, sending postamble");
@@ -133,6 +133,7 @@ static int32_t subghz_worker_thread_receiver(void* _context) {
 
             if(status != FuriStatusOk) {
                 // log or something idk
+                FURI_LOG_E(TAG, "Unable to dequeue SubGhzWorker event: status %d", status);
                 continue;
             }
 
@@ -311,15 +312,16 @@ static void subghz_worker_handle_have_read(void* context) {
 
             event.event = EVENT_SubGhzWorker_PacketReady;
             instance->sentinel_offset = i;
-            furi_message_queue_put(instance->event_queue, &event, FuriWaitForever);
+            FuriStatus status = furi_message_queue_put(instance->event_queue, &event, FuriWaitForever);
+
+            if (status != FuriStatusOk) {
+                FURI_LOG_E(TAG, "Unable to enqueue packet ready event: status %d", status);
+            }
         }
     }
 
     // TODO do other handling here, I guess?
-
     instance->last_time_rx_data = furi_get_tick();
-    event.event = EVENT_SubGhzWorker_RxData;
-    furi_message_queue_put(instance->event_queue, &event, FuriWaitForever);
 }
 
 bool subghz_worker_start(subghz_worker* instance, uint32_t frequency) {
@@ -346,10 +348,7 @@ bool subghz_worker_start(subghz_worker* instance, uint32_t frequency) {
             // If mode is receiving, defer file stream creation until we receive the preamble,
             // that way we know what to call the file
         } else {            
-            if (file_stream_open(instance->file_stream, furi_string_get_cstr(instance->path), FSAM_READ, FSOM_OPEN_EXISTING)) {
-                furi_thread_start(instance->thread);
-                res = true;
-            } else {
+            if (!file_stream_open(instance->file_stream, furi_string_get_cstr(instance->path), FSAM_READ, FSOM_OPEN_EXISTING)) {
                 FURI_LOG_E(
                     TAG,
                     "Unable to open file %s for %s",
@@ -358,6 +357,8 @@ bool subghz_worker_start(subghz_worker* instance, uint32_t frequency) {
             }
         }
 
+        furi_thread_start(instance->thread);
+        res = true;
     } else {
         FURI_LOG_E(TAG, "Unable to start subghz_tx_rx_worker");
     }
