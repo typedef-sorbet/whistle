@@ -1,4 +1,5 @@
 #include <helpers/subghz_worker.h>
+#include <functions.h>
 
 #define TRACE FURI_LOG_T(TAG, __FUNCTION__)
 
@@ -186,10 +187,25 @@ subghz_worker*
     instance->mode = mode;
     instance->subghz_device = device;
 
-    instance->path = furi_string_alloc_set(path);
+    if (mode == MODE_Sending)
+    {
+        instance->path = furi_string_alloc_set(path);
+    }
+    else 
+    {
+        instance->path = furi_string_alloc_set_str(EXT_PATH("whistle_recv/tempfile"));
+    }
+
     instance->storage = furi_record_open(RECORD_STORAGE);
 
     instance->file_stream = file_stream_alloc(instance->storage);
+
+    // Create the receive directory
+    // File alloc will happen later when we get the preamble
+    if (mode == MODE_Sending)
+    {
+        storage_simply_mkdir(instance->storage, EXT_PATH("whistle_recv"));
+    }
 
     instance->thread = furi_thread_alloc_ex(
         "SubGhzWorker",
@@ -232,18 +248,40 @@ static void subghz_worker_handle_have_read(void* context) {
     size_t len = subghz_worker_read(instance, buffer, sizeof(buffer));
     size_t copy_len = min(len, sizeof(instance->packet_buffer) - instance->packet_buffer_ptr);
 
+    if (len <= 0) {
+        return;
+    }
+
+    FURI_LOG_D(TAG, "Received %d bytes:", len);
+    hexdump(buffer, len);
+
     // enshrining this dumbass piece of code as a cautionary tale against writing code at 1am
     //  memcpy(buffer, (instance->packet_buffer + instance->packet_buffer_ptr), copy_len);
     // what the fuck do you think brackets were invented for idiot
-    memcpy(buffer, &instance->packet_buffer[instance->packet_buffer_ptr], copy_len);
+    memcpy(&instance->packet_buffer[instance->packet_buffer_ptr], buffer, copy_len);
+    instance->packet_buffer_ptr += copy_len;
+
+    FURI_LOG_D(TAG, "Packet buffer contents: ");
+    hexdump(instance->packet_buffer, sizeof(instance->packet_buffer));
 
     // TODO this is probably pretty inefficient to do every read, is there a better way?
-    for(size_t i = 0; i < sizeof(instance->packet_buffer) - 4; ++i) {
-        uint32_t sentinel_window;
-        // Is this any faster/slower than indexing into packet_buffer and shifting?
-        memcpy(&sentinel_window, &instance->packet_buffer[i], sizeof(uint32_t));
-        if(sentinel_window == WHISTLE_PACKET_SENTINEL) {
+    for(size_t i = 0; i < min(instance->packet_buffer_ptr, sizeof(instance->packet_buffer)) - 4; ++i) {
+        uint32_t sentinel_window = 0;
+        memcpy(&sentinel_window, &instance->packet_buffer[i], sizeof(sentinel_window));
+
+        // FURI_LOG_D(
+        //     TAG, 
+        //     "searching for sentinel: 0x%02x%02x%02x%02x", 
+        //     (unsigned char)((sentinel_window >> 24) & 0xFF),
+        //     (unsigned char)((sentinel_window >> 16) & 0xFF),
+        //     (unsigned char)((sentinel_window >> 8)  & 0xFF),
+        //     (unsigned char)(sentinel_window         & 0xFF)
+        // );
+
+        if(sentinel_window == WHISTLE_PACKET_SENTINEL || sentinel_window == WHISTLE_PACKET_SENTINEL_LE) {
             // we're done! sound the alarm!
+            FURI_LOG_D(TAG, "Packet found at read offset %d", i);
+
             event.event = EVENT_SubGhzWorker_PacketReady;
             instance->sentinel_offset = i;
             furi_message_queue_put(instance->event_queue, &event, FuriWaitForever);
@@ -261,12 +299,7 @@ bool subghz_worker_start(subghz_worker* instance, uint32_t frequency) {
     TRACE;
     
     furi_assert(instance);
-
-    FURI_LOG_I(TAG, "furi_assert for instance in subghz_worker_start passed");
-
     furi_assert(!instance->worker_running);
-
-    FURI_LOG_I(TAG, "furi_assert for !instance->worker_running in subghz_worker_start passed");
 
     bool res = false;
 
@@ -274,6 +307,7 @@ bool subghz_worker_start(subghz_worker* instance, uint32_t frequency) {
         furi_message_queue_reset(instance->event_queue);
 
         if(instance->mode == MODE_Receiving) {
+            FURI_LOG_D(TAG, "Registering subghz receiver read callback");
             subghz_tx_rx_worker_set_callback_have_read(
                 instance->subghz_txrx, subghz_worker_handle_have_read, instance);
         }
@@ -427,21 +461,25 @@ void subghz_worker_pop_packet(subghz_worker* instance, whistle_packet* packet_pt
     furi_assert(instance);
     furi_assert(packet_ptr);
 
-    unsigned char* packet_start = &instance->packet_buffer
-                                       [instance->sentinel_offset - sizeof(whistle_packet) +
-                                        sizeof(instance->sentinel_offset)];
+    // The beginning of the packet is where the sentinel starts, plus the size of the sentinel itself, *minus* the size of the entire packet.
+    unsigned char* packet_start = &instance->packet_buffer[instance->sentinel_offset - sizeof(whistle_packet) + sizeof(uint32_t)];
 
     memcpy(packet_ptr, packet_start, sizeof(whistle_packet));
 
     // roll the buffer
-    unsigned char* temp_buf[2 * WHISTLE_PACKET_MAX_SIZE] = {0};
+    unsigned char* temp_buf[sizeof(instance->packet_buffer)] = {0};
+
+    FURI_LOG_D(TAG, "Packet buffer before roll:");
+    hexdump(instance->packet_buffer, sizeof(instance->packet_buffer));
 
     memcpy(
         temp_buf,
-        &instance->packet_buffer[instance->sentinel_offset + sizeof(instance->sentinel_offset)],
+        &instance->packet_buffer[instance->sentinel_offset + sizeof(uint32_t)],
         sizeof(temp_buf));
 
     memset(instance->packet_buffer, 0x00, sizeof(instance->packet_buffer));
-
     memcpy(instance->packet_buffer, temp_buf, sizeof(temp_buf));
+
+    FURI_LOG_D(TAG, "Packet buffer after roll:");
+    hexdump(instance->packet_buffer, sizeof(instance->packet_buffer));
 }

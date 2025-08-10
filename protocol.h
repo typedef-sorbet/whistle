@@ -8,6 +8,7 @@
 #define WHISTLE_PACKET_DATA_MAX_SIZE \
     WHISTLE_PACKET_MAX_SIZE - (2 * sizeof(uint32_t)) - sizeof(whistle_packet_type)
 #define WHISTLE_PACKET_SENTINEL     0xD0D0CAFE  // This assumes that nothing sent will ever contain this byte sequence.
+#define WHISTLE_PACKET_SENTINEL_LE  0xFECAD0D0  // little-endian version of above
 
 typedef enum {
     WHISTLE_TYPE_PREAMBLE,

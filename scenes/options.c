@@ -56,12 +56,14 @@ void options_list_enter_callback(void* _context, uint32_t idx) {
 
     whistle_context* context = (whistle_context*)_context;
 
-    if(idx == INDEX_Options_File) {
+    uint32_t index_offset = (context->mode == MODE_Sending ? 0 : 1);
+
+    if(idx == (INDEX_Options_File - index_offset)) {
         // Send a different event based on which mode we're operating in
         scene_manager_handle_custom_event(
             context->scene_manager, 
             EVENT_Options_ChooseFileSelected);
-    } else if(idx == INDEX_Options_Start) {
+    } else if(idx == (INDEX_Options_Start - index_offset)) {
         scene_manager_handle_custom_event(context->scene_manager, EVENT_Options_Start);
     }
 }
@@ -109,18 +111,10 @@ void options_on_enter(void* _context) {
     {
         item = variable_item_list_add(context->option_list, "File", 1, NULL, context);
         variable_item_set_current_value_text(item, furi_string_get_cstr(context->selected_file));
-        variable_item_list_set_enter_callback(
-            context->option_list, options_list_enter_callback, context);
     }
-    else 
-    {
-        // Get the storage handle from furi_record_open
-        context->storage = furi_record_open(RECORD_STORAGE);
 
-        // Create the receive directory
-        // File alloc will happen later when we get the preamble
-        storage_simply_mkdir(context->storage, EXT_PATH("whistle_recv"));
-    }
+    variable_item_list_set_enter_callback(
+        context->option_list, options_list_enter_callback, context);
 
     // Start button
 

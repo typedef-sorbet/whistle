@@ -4,8 +4,6 @@
 #include <lib/subghz/devices/cc1101_int/cc1101_int_interconnect.h>
 
 void transfer_on_enter(void* _context) {
-    // TODO the app seems to hang somewhere around here...
-    // It's probably a race condition with the spawned thread.
     TRACE;
 
     furi_assert(_context);
