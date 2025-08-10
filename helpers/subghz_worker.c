@@ -1,5 +1,7 @@
 #include <helpers/subghz_worker.h>
 
+#define TRACE FURI_LOG_T(TAG, __FUNCTION__)
+
 static const uint32_t crc32_tab[] = {
     0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f, 0xe963a535,
     0x9e6495a3, 0x0edb8832, 0x79dcb8a4, 0xe0d5e91e, 0x97d2d988, 0x09b64c2b, 0x7eb17cbd,
@@ -39,61 +41,59 @@ static const uint32_t crc32_tab[] = {
     0xcdd70693, 0x54de5729, 0x23d967bf, 0xb3667a2e, 0xc4614ab8, 0x5d681b02, 0x2a6f2b94,
     0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d};
 
-static inline size_t min(size_t a, size_t b)
-{
+static inline size_t min(size_t a, size_t b) {
     return a < b ? a : b;
 }
 
-static uint32_t crc32(unsigned char *data, size_t size)
-{
-    const uint8_t *p = data;
+static uint32_t crc32(unsigned char* data, size_t size) {
+    const uint8_t* p = data;
     uint32_t crc;
 
     crc = ~0U;
-    while (size--)
-    {
+    while(size--) {
         crc = crc32_tab[(crc ^ *p++) & 0xFF] ^ (crc >> 8);
     }
 
     return crc ^ ~0U;
 }
 
-static int32_t subghz_worker_thread_sender(void *_context)
-{
+static int32_t subghz_worker_thread_sender(void* _context) {
+    TRACE;
+
+    furi_assert(_context);
+
     FURI_LOG_I(TAG, "SubGhz senderworker start");
 
-    subghz_worker *instance = (subghz_worker *)_context;
+    subghz_worker* instance = (subghz_worker*)_context;
 
-    char *filename = malloc(WHISTLE_PACKET_DATA_MAX_SIZE - sizeof(uint32_t));
+    char* filename = malloc(WHISTLE_PACKET_DATA_MAX_SIZE - sizeof(uint32_t));
     int basename_offset = furi_string_search_rchar(instance->path, '/');
-    size_t filename_len = min(WHISTLE_PACKET_DATA_MAX_SIZE - sizeof(uint32_t), furi_string_size(instance->path));
+    size_t filename_len =
+        min(WHISTLE_PACKET_DATA_MAX_SIZE - sizeof(uint32_t), furi_string_size(instance->path));
 
-    if (basename_offset < 0)
-    {
+    if(basename_offset < 0) {
         basename_offset = 0;
     }
 
-    strncpy(
+    strncpy(filename, furi_string_get_cstr(instance->path), filename_len);
+
+    // it's unlikely that the worker_running flag will trip while we're sending the preamble
+    whistle_packet packet = subghz_worker_pack_preamble(
+        stream_size(instance->file_stream), 
         filename, 
-        furi_string_get_cstr(instance->path), 
         filename_len
     );
 
-    // it's unlikely that the worker_running flag will trip while we're sending the preamble
-    whistle_packet packet = subghz_worker_pack_preamble(stream_size(instance->file_stream), filename, len);
-
-    subghz_worker_write(instance, (uint8_t *)&packet, sizeof(packet));
+    subghz_worker_write(instance, (uint8_t*)&packet, sizeof(packet));
 
     furi_delay_ms(30);
 
-    while (instance->worker_running)
-    {
+    while(instance->worker_running) {
         // file should already be open
         unsigned char readbuf[WHISTLE_PACKET_DATA_MAX_SIZE];
         size_t readlen = stream_read(instance->file_stream, readbuf, sizeof(readbuf));
 
-        if (readlen == 0)
-        {
+        if(readlen == 0) {
             instance->worker_running = false;
             continue;
         }
@@ -102,7 +102,7 @@ static int32_t subghz_worker_thread_sender(void *_context)
 
         instance->offset += readlen;
 
-        subghz_worker_write(instance, (uint8_t *)&packet, sizeof(packet));
+        subghz_worker_write(instance, (uint8_t*)&packet, sizeof(packet));
 
         furi_delay_ms(10);
     }
@@ -111,41 +111,40 @@ static int32_t subghz_worker_thread_sender(void *_context)
     return 0;
 }
 
-static int32_t subghz_worker_thread_receiver(void *_context)
-{
+static int32_t subghz_worker_thread_receiver(void* _context) {
+    TRACE;
+    
+    furi_assert(_context);
+
     FURI_LOG_I(TAG, "SubGhz receiver worker start");
 
-    subghz_worker *instance = (subghz_worker *)_context;
+    subghz_worker* instance = (subghz_worker*)_context;
 
-    while (instance->worker_running)
-    {
-        if (furi_message_queue_get_count(instance->event_queue) > 0)
-        {
+    while(instance->worker_running) {
+        if(furi_message_queue_get_count(instance->event_queue) > 0) {
             subghz_worker_event event;
-            FuriStatus status = furi_message_queue_get(instance->event_queue, &event, FuriWaitForever);
+            FuriStatus status =
+                furi_message_queue_get(instance->event_queue, &event, FuriWaitForever);
 
-            if (status != FuriStatusOk)
-            {
+            if(status != FuriStatusOk) {
                 // log or something idk
                 continue;
             }
 
-            switch (event.event)
-            {
+            switch(event.event) {
             case EVENT_SubGhzWorker_PacketReady:
                 whistle_packet packet;
                 subghz_worker_pop_packet(instance, &packet);
                 FURI_LOG_I(TAG, "Got packet! CRC: %lu", packet.packet_crc);
 
-                switch (packet.packet_type)
-                {
-                    case WHISTLE_TYPE_PREAMBLE:
+                switch(packet.packet_type) {
+                case WHISTLE_TYPE_PREAMBLE:
                     break;
 
-                    case WHISTLE_TYPE_DATA:
+                case WHISTLE_TYPE_DATA:
                     break;
 
-                    default:
+                default:
                     break;
                 }
 
@@ -162,14 +161,14 @@ static int32_t subghz_worker_thread_receiver(void *_context)
     return 0;
 }
 
-subghz_worker_event subghz_worker_get_event(subghz_worker *instance)
-{
+subghz_worker_event subghz_worker_get_event(subghz_worker* instance) {
+    TRACE;
+    
     furi_assert(instance);
 
     subghz_worker_event event;
 
-    if (furi_message_queue_get(instance->event_queue, &event, FuriWaitForever) != FuriStatusOk)
-    {
+    if(furi_message_queue_get(instance->event_queue, &event, FuriWaitForever) != FuriStatusOk) {
         event.event = EVENT_SubGhzWorker_NoEvent;
     }
 
@@ -178,10 +177,11 @@ subghz_worker_event subghz_worker_get_event(subghz_worker *instance)
 
 // TODO it's probably more idiomatic to have setters for these, but whatever
 // TODO should also do error checking here
-subghz_worker *
-subghz_worker_alloc(const SubGhzDevice *device, whistle_mode mode, FuriString *path)
-{
-    subghz_worker *instance = malloc(sizeof(subghz_worker));
+subghz_worker*
+    subghz_worker_alloc(const SubGhzDevice* device, whistle_mode mode, FuriString* path) {
+    FURI_LOG_T(TAG, __FUNCTION__);
+    
+    subghz_worker* instance = malloc(sizeof(subghz_worker));
 
     instance->mode = mode;
     instance->subghz_device = device;
@@ -202,8 +202,9 @@ subghz_worker_alloc(const SubGhzDevice *device, whistle_mode mode, FuriString *p
     return instance;
 }
 
-void subghz_worker_free(subghz_worker *instance)
-{
+void subghz_worker_free(subghz_worker* instance) {
+    TRACE;
+    
     furi_assert(instance);
     furi_assert(!instance->worker_running);
 
@@ -217,11 +218,12 @@ void subghz_worker_free(subghz_worker *instance)
     free(instance);
 }
 
-static void subghz_worker_handle_have_read(void *context)
-{
+static void subghz_worker_handle_have_read(void* context) {
+    TRACE;
+    
     furi_assert(context);
 
-    subghz_worker *instance = (subghz_worker *)context;
+    subghz_worker* instance = (subghz_worker*)context;
     subghz_worker_event event;
 
     unsigned char buffer[128];
@@ -236,13 +238,11 @@ static void subghz_worker_handle_have_read(void *context)
     memcpy(buffer, &instance->packet_buffer[instance->packet_buffer_ptr], copy_len);
 
     // TODO this is probably pretty inefficient to do every read, is there a better way?
-    for (size_t i = 0; i < sizeof(instance->packet_buffer) - 4; ++i)
-    {
+    for(size_t i = 0; i < sizeof(instance->packet_buffer) - 4; ++i) {
         uint32_t sentinel_window;
         // Is this any faster/slower than indexing into packet_buffer and shifting?
         memcpy(&sentinel_window, &instance->packet_buffer[i], sizeof(uint32_t));
-        if (sentinel_window == WHISTLE_PACKET_SENTINEL)
-        {
+        if(sentinel_window == WHISTLE_PACKET_SENTINEL) {
             // we're done! sound the alarm!
             event.event = EVENT_SubGhzWorker_PacketReady;
             instance->sentinel_offset = i;
@@ -257,19 +257,23 @@ static void subghz_worker_handle_have_read(void *context)
     furi_message_queue_put(instance->event_queue, &event, FuriWaitForever);
 }
 
-bool subghz_worker_start(subghz_worker *instance, uint32_t frequency)
-{
+bool subghz_worker_start(subghz_worker* instance, uint32_t frequency) {
+    TRACE;
+    
     furi_assert(instance);
+
+    FURI_LOG_I(TAG, "furi_assert for instance in subghz_worker_start passed");
+
     furi_assert(!instance->worker_running);
+
+    FURI_LOG_I(TAG, "furi_assert for !instance->worker_running in subghz_worker_start passed");
 
     bool res = false;
 
-    if (subghz_tx_rx_worker_start(instance->subghz_txrx, instance->subghz_device, frequency))
-    {
+    if(subghz_tx_rx_worker_start(instance->subghz_txrx, instance->subghz_device, frequency)) {
         furi_message_queue_reset(instance->event_queue);
 
-        if (instance->mode == MODE_Receiving)
-        {
+        if(instance->mode == MODE_Receiving) {
             subghz_tx_rx_worker_set_callback_have_read(
                 instance->subghz_txrx, subghz_worker_handle_have_read, instance);
         }
@@ -279,40 +283,35 @@ bool subghz_worker_start(subghz_worker *instance, uint32_t frequency)
         instance->offset = 0;
         instance->packet_buffer_ptr = 0;
 
-        if (file_stream_open(
-                instance->file_stream,
-                furi_string_get_cstr(instance->path),
-                instance->mode == MODE_Sending ? FSAM_READ : FSAM_WRITE,
-                instance->mode == MODE_Sending ? FSOM_OPEN_EXISTING : FSOM_CREATE_ALWAYS))
-        {
+        if(file_stream_open(
+               instance->file_stream,
+               furi_string_get_cstr(instance->path),
+               instance->mode == MODE_Sending ? FSAM_READ : FSAM_WRITE,
+               instance->mode == MODE_Sending ? FSOM_OPEN_EXISTING : FSOM_CREATE_ALWAYS)) {
             furi_thread_start(instance->thread);
 
             res = true;
-        }
-        else
-        {
+        } else {
             FURI_LOG_E(
                 TAG,
                 "Unable to open file %s for %s",
                 furi_string_get_cstr(instance->path),
                 instance->mode == MODE_Sending ? "reading" : "writing");
         }
-    }
-    else
-    {
+    } else {
         FURI_LOG_E(TAG, "Unable to start subghz_tx_rx_worker");
     }
 
     return res;
 }
 
-void subghz_worker_thread_stop(subghz_worker *instance)
-{
+void subghz_worker_thread_stop(subghz_worker* instance) {
+    TRACE;
+    
     furi_assert(instance);
     furi_assert(instance->worker_running);
 
-    if (subghz_tx_rx_worker_is_running(instance->subghz_txrx))
-    {
+    if(subghz_tx_rx_worker_is_running(instance->subghz_txrx)) {
         subghz_tx_rx_worker_stop(instance->subghz_txrx);
     }
 
@@ -323,58 +322,60 @@ void subghz_worker_thread_stop(subghz_worker *instance)
     furi_thread_join(instance->thread);
 }
 
-bool subghz_worker_is_running(subghz_worker *instance)
-{
+bool subghz_worker_is_running(subghz_worker* instance) {
+    TRACE;
+    
     furi_assert(instance);
     return instance->worker_running;
 }
 
-void subghz_worker_put_event(subghz_worker *instance, subghz_worker_event *event)
-{
+void subghz_worker_put_event(subghz_worker* instance, subghz_worker_event* event) {
+    TRACE;
+    
     furi_assert(instance);
     furi_message_queue_put(instance->event_queue, event, FuriWaitForever);
 }
 
-size_t subghz_worker_available(subghz_worker *instance)
-{
+size_t subghz_worker_available(subghz_worker* instance) {
+    TRACE;
+    
     furi_assert(instance);
     return subghz_tx_rx_worker_available(instance->subghz_txrx);
 }
 
-size_t subghz_worker_read(subghz_worker *instance, uint8_t *data, size_t size)
-{
+size_t subghz_worker_read(subghz_worker* instance, uint8_t* data, size_t size) {
+    TRACE;
+    
     furi_assert(instance);
     return subghz_tx_rx_worker_read(instance->subghz_txrx, data, size);
 }
 
-bool subghz_worker_write(subghz_worker *instance, uint8_t *data, size_t size)
-{
+bool subghz_worker_write(subghz_worker* instance, uint8_t* data, size_t size) {
+    TRACE;
+    
     furi_assert(instance);
 
     bool res = subghz_tx_rx_worker_write(instance->subghz_txrx, data, size);
 
-    if (res)
-    {
+    if(res) {
         char hexbuf[(4 * size) + 1];
         memset(hexbuf, 0x00, sizeof(hexbuf));
 
-        for (size_t i = 0; i < size; ++i)
-        {
+        for(size_t i = 0; i < size; ++i) {
             snprintf(&hexbuf[2 * i], 4, "%02x ", (uint8_t)data[i]);
         }
 
         FURI_LOG_D(TAG, "Wrote %d bytes: 0x%s", size, hexbuf);
-    }
-    else
-    {
+    } else {
         FURI_LOG_E(TAG, "Failed to write %d bytes", size);
     }
 
     return res;
 }
 
-whistle_packet subghz_worker_pack_data(unsigned char *data, size_t size, uint32_t offset)
-{
+whistle_packet subghz_worker_pack_data(unsigned char* data, size_t size, uint32_t offset) {
+    TRACE;
+    
     furi_assert(data);
     furi_assert(size < (WHISTLE_PACKET_MAX_SIZE - sizeof(uint32_t)));
 
@@ -390,13 +391,15 @@ whistle_packet subghz_worker_pack_data(unsigned char *data, size_t size, uint32_
 
     packet.sentinel = WHISTLE_PACKET_SENTINEL;
 
-    packet.packet_crc = crc32((unsigned char *)&packet, sizeof(packet));
+    packet.packet_crc = crc32((unsigned char*)&packet, sizeof(packet));
 
     return packet;
 }
 
-whistle_packet subghz_worker_pack_preamble(uint32_t file_size, char *file_name, size_t file_name_size) 
-{
+whistle_packet
+    subghz_worker_pack_preamble(uint32_t file_size, char* file_name, size_t file_name_size) {
+    TRACE;
+    
     furi_assert(file_name);
     furi_assert(file_name_size < (WHISTLE_PACKET_DATA_MAX_SIZE - sizeof(uint32_t)));
     // truncating via file_name_size is acceptable, over-running is not
@@ -413,24 +416,25 @@ whistle_packet subghz_worker_pack_preamble(uint32_t file_size, char *file_name, 
 
     packet.sentinel = WHISTLE_PACKET_SENTINEL;
 
-    packet.packet_crc = crc32((unsigned char *)&packet, sizeof(packet));
+    packet.packet_crc = crc32((unsigned char*)&packet, sizeof(packet));
 
     return packet;
 }
 
-void subghz_worker_pop_packet(subghz_worker *instance, whistle_packet *packet_ptr)
-{
+void subghz_worker_pop_packet(subghz_worker* instance, whistle_packet* packet_ptr) {
+    TRACE;
+    
     furi_assert(instance);
     furi_assert(packet_ptr);
 
-    unsigned char *packet_start = &instance->packet_buffer
+    unsigned char* packet_start = &instance->packet_buffer
                                        [instance->sentinel_offset - sizeof(whistle_packet) +
                                         sizeof(instance->sentinel_offset)];
 
     memcpy(packet_ptr, packet_start, sizeof(whistle_packet));
 
     // roll the buffer
-    unsigned char *temp_buf[2 * WHISTLE_PACKET_MAX_SIZE] = {0};
+    unsigned char* temp_buf[2 * WHISTLE_PACKET_MAX_SIZE] = {0};
 
     memcpy(
         temp_buf,

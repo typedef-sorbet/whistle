@@ -45,6 +45,9 @@ typedef struct {
     // Thread worker(s)
     subghz_worker* subghz_worker;
 
+    // Storage handle
+    Storage *storage;
+
     // ...
 } whistle_context;
 

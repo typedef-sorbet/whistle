@@ -10,19 +10,30 @@ void transfer_on_enter(void* _context) {
 
     furi_assert(_context);
 
+    FURI_LOG_I(TAG, "furi_assert in transfer_on_enter passed");
+
     whistle_context* context = (whistle_context*)_context;
 
+    FURI_LOG_I(TAG, "whistle_context* cast from _context in transfer_on_enter passed");
+
     // Allocate/open subghz device
+    subghz_devices_init();
 
     const SubGhzDevice* subghz_device = subghz_devices_get_by_name(SUBGHZ_DEVICE_CC1101_INT_NAME);
+
+    FURI_LOG_I(TAG, "subghz_devices_get_by_name in transfer_on_enter passed");
 
     // Allocate subghz worker
     context->subghz_worker =
         subghz_worker_alloc(subghz_device, context->mode, context->selected_file);
 
+    FURI_LOG_I(TAG, "subghz_worker_alloc in transfer_on_enter passed");
+
     // TODO error checking
 
     subghz_worker_start(context->subghz_worker, context->frequency);
+
+    FURI_LOG_I(TAG, "subghz_worker_start in transfer_on_enter passed");
 
     view_dispatcher_switch_to_view(context->view_dispatcher, VIEW_Transfer);
 }

@@ -16,6 +16,7 @@ void file_browser_browser_callback(void* _context) {
     scene_manager_handle_back_event(context->scene_manager);
 }
 
+// Seems to only get run on files, not directories
 bool file_browser_browser_item_callback(
     FuriString* path,
     void* _context,
@@ -25,9 +26,11 @@ bool file_browser_browser_item_callback(
     furi_assert(_context);
 
     (void)icon;
-    (void)item_name;
-    (void)path;
+    // (void)item_name;
+    // (void)path;
     (void)_context;
+
+    FURI_LOG_D(TAG, "%s: path: %s; item_name: %s", __FUNCTION__, furi_string_get_cstr(path), furi_string_get_cstr(item_name));
 
     return true;
 }
