@@ -1,4 +1,5 @@
 #include <furi/core/thread.h>
+#include <furi/core/timer.h>
 #include <lib/subghz/subghz_tx_rx_worker.h>
 #include <lib/toolbox/stream/file_stream.h>
 #include <enums.h>
@@ -7,6 +8,8 @@
 #pragma once
 #ifndef SUBGHZ_WORKER_H
 #define SUBGHZ_WORKER_H
+
+#define RECEIVE_TIMEOUT 500
 
 typedef enum {
     EVENT_SubGhzWorker_NoEvent,
@@ -34,17 +37,18 @@ typedef struct {
     FuriMessageQueue* event_queue;
     uint32_t last_time_rx_data;
 
-    // TODO rightsize
-    unsigned char packet_buffer[2 * WHISTLE_PACKET_MAX_SIZE];
-    size_t packet_buffer_ptr;
-    size_t sentinel_offset;
-
     Storage* storage;
     FuriString* path;
     Stream* file_stream;
     size_t offset;
 
     const SubGhzDevice* subghz_device;
+    FuriTimer *recv_timer;
+
+    // TODO rightsize
+    size_t packet_buffer_ptr;
+    size_t sentinel_offset;
+    unsigned char packet_buffer[2 * WHISTLE_PACKET_MAX_SIZE];
 
     // shouldn't need Cli pointer, right?
 } subghz_worker;
@@ -77,5 +81,7 @@ whistle_packet subghz_worker_pack_preamble(uint32_t file_size, char *file_name, 
 whistle_packet subghz_worker_pack_postamble();
 
 bool subghz_worker_write(subghz_worker* instance, uint8_t* data, size_t size);
+
+void subghz_worker_handle_timeout(void *context);
 
 #endif // SUBGHZ_WORKER_H

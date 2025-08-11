@@ -163,12 +163,13 @@ static int32_t subghz_worker_thread_receiver(void* _context) {
                     FURI_LOG_I(TAG, "Full receive path: %s", furi_string_get_cstr(instance->path));
 
                     // TODO: I don't know why the storage pointer is getting cleared by this point
-                    instance->storage = furi_record_open(RECORD_STORAGE);
-                    instance->file_stream = file_stream_alloc(instance->storage);
 
                     if (!file_stream_open(instance->file_stream, furi_string_get_cstr(instance->path), FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
                         FURI_LOG_E(TAG, "Unable to open file %s for writing", furi_string_get_cstr(instance->path));
                     }
+
+                    FURI_LOG_I(TAG, "Restarting recv timer");
+                    furi_timer_start(instance->recv_timer, RECEIVE_TIMEOUT);
 
                     break;
 
@@ -241,6 +242,9 @@ subghz_worker*
     if (mode == MODE_Receiving)
     {
         storage_simply_mkdir(instance->storage, EXT_PATH("whistle_recv"));
+
+        furi_timer_set_thread_priority(FuriTimerThreadPriorityElevated);
+        instance->recv_timer = furi_timer_alloc(subghz_worker_handle_timeout, FuriTimerTypeOnce, instance);
     }
 
     instance->thread = furi_thread_alloc_ex(
@@ -264,6 +268,7 @@ void subghz_worker_free(subghz_worker* instance) {
     subghz_tx_rx_worker_free(instance->subghz_txrx);
     furi_thread_free(instance->thread);
     furi_string_free(instance->path);
+    furi_timer_free(instance->recv_timer);
 
     furi_record_close(RECORD_STORAGE);
 
@@ -288,8 +293,8 @@ static void subghz_worker_handle_have_read(void* context) {
         return;
     }
 
-    FURI_LOG_D(TAG, "Received %d bytes", len);
-    hexdump(buffer, len);
+    FURI_LOG_T(TAG, "Received %d bytes", len);
+    hexdump(buffer, len, LOG_TRACE);
 
     // enshrining this dumbass piece of code as a cautionary tale against writing code at 1am
     //  memcpy(buffer, (instance->packet_buffer + instance->packet_buffer_ptr), copy_len);
@@ -297,8 +302,8 @@ static void subghz_worker_handle_have_read(void* context) {
     memcpy(&instance->packet_buffer[instance->packet_buffer_ptr], buffer, copy_len);
     instance->packet_buffer_ptr += copy_len;
 
-    FURI_LOG_D(TAG, "Packet buffer contents: ");
-    hexdump(instance->packet_buffer, sizeof(instance->packet_buffer));
+    FURI_LOG_T(TAG, "Packet buffer contents: ");
+    hexdump(instance->packet_buffer, sizeof(instance->packet_buffer), LOG_TRACE);
 
     // TODO this is probably pretty inefficient to do every read, is there a better way?
     for(size_t i = 0; i < sizeof(instance->packet_buffer) - 4; ++i) {
@@ -318,6 +323,9 @@ static void subghz_worker_handle_have_read(void* context) {
             }
         }
     }
+
+    FURI_LOG_I(TAG, "Restarting recv timer");
+    furi_timer_restart(instance->recv_timer, RECEIVE_TIMEOUT);
 
     // TODO do other handling here, I guess?
     instance->last_time_rx_data = furi_get_tick();
@@ -513,8 +521,8 @@ void subghz_worker_pop_packet(subghz_worker* instance, whistle_packet* packet_pt
     // roll the buffer
     unsigned char* temp_buf[sizeof(instance->packet_buffer)] = {0};
 
-    FURI_LOG_D(TAG, "Packet buffer before roll:");
-    hexdump(instance->packet_buffer, sizeof(instance->packet_buffer));
+    FURI_LOG_T(TAG, "Packet buffer before roll:");
+    hexdump(instance->packet_buffer, sizeof(instance->packet_buffer), LOG_TRACE);
 
     memcpy(
         temp_buf,
@@ -522,10 +530,40 @@ void subghz_worker_pop_packet(subghz_worker* instance, whistle_packet* packet_pt
         sizeof(temp_buf));
 
     memset(instance->packet_buffer, 0x00, sizeof(instance->packet_buffer));
-    memcpy(instance->packet_buffer, temp_buf, sizeof(temp_buf));
+    memcpy(instance->packet_buffer, temp_buf, sizeof(instance->packet_buffer));
 
-    FURI_LOG_D(TAG, "Packet buffer after roll:");
-    hexdump(instance->packet_buffer, sizeof(instance->packet_buffer));
+    FURI_LOG_T(TAG, "Packet buffer after roll:");
+    hexdump(instance->packet_buffer, sizeof(instance->packet_buffer), LOG_TRACE);
 
     instance->packet_buffer_ptr -= sizeof(whistle_packet);
+}
+
+void subghz_worker_handle_timeout(void *context) {
+    FURI_LOG_I(TAG, "Receive timeout, sender is probably done");
+
+    // Pop the last packet off of the buffer
+    subghz_worker *instance = (subghz_worker*)context;
+    subghz_worker_event event;
+    
+    FURI_LOG_I(TAG, "Final packet buffer contents:");
+    // hexdump(instance->packet_buffer, sizeof(instance->packet_buffer), LOG_INFO);
+
+    // TODO this is probably pretty inefficient to do every read, is there a better way?
+    for(size_t i = 0; i < sizeof(instance->packet_buffer) - 4; ++i) {
+        uint32_t sentinel_window = 0;
+        memcpy(&sentinel_window, &instance->packet_buffer[i], sizeof(sentinel_window));
+
+        if(sentinel_window == WHISTLE_PACKET_SENTINEL || sentinel_window == WHISTLE_PACKET_SENTINEL_LE) {
+            // we're done! sound the alarm!
+            FURI_LOG_I(TAG, "Packet found at read offset %d", i);
+
+            event.event = EVENT_SubGhzWorker_PacketReady;
+            instance->sentinel_offset = i;
+            FuriStatus status = furi_message_queue_put(instance->event_queue, &event, FuriWaitForever);
+
+            if (status != FuriStatusOk) {
+                FURI_LOG_E(TAG, "Unable to enqueue packet ready event: status %d", status);
+            }
+        }
+    }
 }
