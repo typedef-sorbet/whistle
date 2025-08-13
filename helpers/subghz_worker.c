@@ -287,45 +287,48 @@ static void subghz_worker_handle_have_read(void* context) {
     memset(buffer, 0x00, sizeof(buffer));
 
     size_t len = subghz_worker_read(instance, buffer, sizeof(buffer));
-    size_t copy_len = min(len, sizeof(instance->packet_buffer) - instance->packet_buffer_ptr);
+    
+    while (len > 0)
+    {
+        size_t copy_len = min(len, sizeof(instance->packet_buffer) - instance->packet_buffer_ptr);
 
-    if (len <= 0) {
-        return;
-    }
-
-    FURI_LOG_T(TAG, "Received %d bytes", len);
-    hexdump(buffer, len, LOG_TRACE);
-
-    // enshrining this dumbass piece of code as a cautionary tale against writing code at 1am
-    //  memcpy(buffer, (instance->packet_buffer + instance->packet_buffer_ptr), copy_len);
-    // what the fuck do you think brackets were invented for idiot
-    memcpy(&instance->packet_buffer[instance->packet_buffer_ptr], buffer, copy_len);
-    instance->packet_buffer_ptr += copy_len;
-
-    FURI_LOG_T(TAG, "Packet buffer contents: ");
-    hexdump(instance->packet_buffer, sizeof(instance->packet_buffer), LOG_TRACE);
-
-    // TODO this is probably pretty inefficient to do every read, is there a better way?
-    for(size_t i = 0; i < sizeof(instance->packet_buffer) - 4; ++i) {
-        uint32_t sentinel_window = 0;
-        memcpy(&sentinel_window, &instance->packet_buffer[i], sizeof(sentinel_window));
-
-        if(sentinel_window == WHISTLE_PACKET_SENTINEL || sentinel_window == WHISTLE_PACKET_SENTINEL_LE) {
-            // we're done! sound the alarm!
-            FURI_LOG_D(TAG, "Packet found at read offset %d", i);
-
-            event.event = EVENT_SubGhzWorker_PacketReady;
-            instance->sentinel_offset = i;
-            FuriStatus status = furi_message_queue_put(instance->event_queue, &event, FuriWaitForever);
-
-            if (status != FuriStatusOk) {
-                FURI_LOG_E(TAG, "Unable to enqueue packet ready event: status %d", status);
+        FURI_LOG_T(TAG, "Received %d bytes", len);
+        hexdump(buffer, len, LOG_TRACE);
+    
+        // enshrining this dumbass piece of code as a cautionary tale against writing code at 1am
+        //  memcpy(buffer, (instance->packet_buffer + instance->packet_buffer_ptr), copy_len);
+        // what the fuck do you think brackets were invented for idiot
+        memcpy(&instance->packet_buffer[instance->packet_buffer_ptr], buffer, copy_len);
+        instance->packet_buffer_ptr += copy_len;
+    
+        FURI_LOG_T(TAG, "Packet buffer contents: ");
+        hexdump(instance->packet_buffer, sizeof(instance->packet_buffer), LOG_TRACE);
+    
+        // TODO this is probably pretty inefficient to do every read, is there a better way?
+        for(size_t i = 0; i < sizeof(instance->packet_buffer) - 4; ++i) {
+            uint32_t sentinel_window = 0;
+            memcpy(&sentinel_window, &instance->packet_buffer[i], sizeof(sentinel_window));
+    
+            if(sentinel_window == WHISTLE_PACKET_SENTINEL || sentinel_window == WHISTLE_PACKET_SENTINEL_LE) {
+                // we're done! sound the alarm!
+                FURI_LOG_D(TAG, "Packet found at read offset %d", i);
+    
+                event.event = EVENT_SubGhzWorker_PacketReady;
+                instance->sentinel_offset = i;
+                FuriStatus status = furi_message_queue_put(instance->event_queue, &event, FuriWaitForever);
+    
+                if (status != FuriStatusOk) {
+                    FURI_LOG_E(TAG, "Unable to enqueue packet ready event: status %d", status);
+                }
             }
         }
+    
+        FURI_LOG_I(TAG, "Restarting recv timer");
+        furi_timer_restart(instance->recv_timer, RECEIVE_TIMEOUT);
+
+        len = subghz_worker_read(instance, buffer, sizeof(buffer));
     }
 
-    FURI_LOG_I(TAG, "Restarting recv timer");
-    furi_timer_restart(instance->recv_timer, RECEIVE_TIMEOUT);
 
     // TODO do other handling here, I guess?
     instance->last_time_rx_data = furi_get_tick();
@@ -565,5 +568,11 @@ void subghz_worker_handle_timeout(void *context) {
                 FURI_LOG_E(TAG, "Unable to enqueue packet ready event: status %d", status);
             }
         }
+    }
+
+    // Cleanup
+    if (instance->file_stream)
+    {
+        file_stream_close(instance->file_stream);
     }
 }
