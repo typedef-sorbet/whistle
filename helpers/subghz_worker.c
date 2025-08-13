@@ -87,7 +87,9 @@ static int32_t subghz_worker_thread_sender(void* _context) {
 
     subghz_worker_write(instance, (uint8_t*)&packet, sizeof(packet));
 
-    furi_delay_us(100000);
+    furi_delay_ms(100);
+
+    int i = 0;
 
     while(instance->worker_running) {
         // file should already be open
@@ -105,7 +107,9 @@ static int32_t subghz_worker_thread_sender(void* _context) {
 
         subghz_worker_write(instance, (uint8_t*)&packet, sizeof(packet));
 
-        furi_delay_us(100000);
+        FURI_LOG_D(TAG, "%dth packet sent.", i++);
+
+        furi_delay_ms(100);
     }
 
     FURI_LOG_I(TAG, "File send complete, sending postamble");
@@ -113,6 +117,9 @@ static int32_t subghz_worker_thread_sender(void* _context) {
     subghz_worker_write(instance, (uint8_t*)&postamble, sizeof(postamble));
 
     FURI_LOG_I(TAG, "SubGhz sender worker stop");
+
+    instance->worker_running = true;
+    
     return 0;
 }
 
@@ -192,6 +199,18 @@ static int32_t subghz_worker_thread_receiver(void* _context) {
                 }
 
                 break;
+
+            case EVENT_SubGhzWorker_Done:
+                // We're done -- clean up, and send an event to whoever's listening that we're
+                // finished.
+                if (instance->file_stream)
+                {
+                    file_stream_close(instance->file_stream);
+                }
+
+                instance->worker_running = false;
+                break;
+
             default:
                 // no-op
                 break;
@@ -220,8 +239,12 @@ subghz_worker_event subghz_worker_get_event(subghz_worker* instance) {
 // TODO it's probably more idiomatic to have setters for these, but whatever
 // TODO should also do error checking here
 subghz_worker*
-    subghz_worker_alloc(const SubGhzDevice* device, whistle_mode mode, FuriString* path) {
+    subghz_worker_alloc(const SubGhzDevice* device, whistle_mode mode, FuriString* path, void *context, FuriThreadStateCallback thread_callback) {
     FURI_LOG_T(TAG, __FUNCTION__);
+
+    furi_assert(device);
+    furi_assert(path);
+    furi_assert(context);
     
     subghz_worker* instance = malloc(sizeof(subghz_worker));
 
@@ -255,6 +278,9 @@ subghz_worker*
     instance->subghz_txrx = subghz_tx_rx_worker_alloc();
     instance->event_queue = furi_message_queue_alloc(80, sizeof(subghz_worker_event));
 
+    furi_thread_set_state_callback(instance->thread, thread_callback);
+    furi_thread_set_state_context(instance->thread, context);
+
     return instance;
 }
 
@@ -268,7 +294,10 @@ void subghz_worker_free(subghz_worker* instance) {
     subghz_tx_rx_worker_free(instance->subghz_txrx);
     furi_thread_free(instance->thread);
     furi_string_free(instance->path);
-    furi_timer_free(instance->recv_timer);
+    if (instance->recv_timer)
+    {
+        furi_timer_free(instance->recv_timer);
+    }
 
     furi_record_close(RECORD_STORAGE);
 
@@ -380,17 +409,22 @@ void subghz_worker_thread_stop(subghz_worker* instance) {
     TRACE;
     
     furi_assert(instance);
-    furi_assert(instance->worker_running);
 
+    instance->worker_running = false;
+
+    FURI_LOG_D(TAG, "Joining thread");
+    furi_thread_join(instance->thread);
+    FURI_LOG_D(TAG, "Thread joined");
+
+    // TODO: For some reason, this hangs?
     if(subghz_tx_rx_worker_is_running(instance->subghz_txrx)) {
         subghz_tx_rx_worker_stop(instance->subghz_txrx);
     }
 
-    file_stream_close(instance->file_stream);
-
-    instance->worker_running = false;
-
-    furi_thread_join(instance->thread);
+    if (instance->file_stream)
+    {
+        file_stream_close(instance->file_stream);
+    }
 }
 
 bool subghz_worker_is_running(subghz_worker* instance) {
@@ -570,9 +604,8 @@ void subghz_worker_handle_timeout(void *context) {
         }
     }
 
-    // Cleanup
-    if (instance->file_stream)
-    {
-        file_stream_close(instance->file_stream);
-    }
+    subghz_worker_event done_event;
+    event.event = EVENT_SubGhzWorker_Done;
+
+    furi_message_queue_put(instance->event_queue, &done_event, FuriWaitForever);
 }

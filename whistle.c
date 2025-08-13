@@ -1,6 +1,8 @@
 #include <whistle.h>
 #include <whistle_i.h>
 
+#include <scenes/done.h>
+
 bool whistle_custom_event_cb(void* _context, uint32_t event) {
     TRACE;
 
@@ -41,6 +43,11 @@ whistle_context* context_alloc() {
         goto err_menu_alloc;
     }
 
+    context->text_box = text_box_alloc();
+    if (NULL == context->text_box) {
+        goto err_textbox_alloc;
+    }
+
     // VariableItemList setup
     context->option_list = variable_item_list_alloc();
     if(NULL == context->option_list) {
@@ -76,6 +83,12 @@ whistle_context* context_alloc() {
         goto err_gui;
     }
 
+    // Timer setup
+    context->timer = furi_timer_alloc(done_on_timer_complete, FuriTimerTypeOnce, context);
+    if (NULL == context->timer) {
+        goto err_timer;
+    }
+
     // ViewDispatcher setup
     view_dispatcher_enable_queue(context->view_dispatcher);
 
@@ -98,6 +111,7 @@ whistle_context* context_alloc() {
         context->view_dispatcher, VIEW_FileBrowser, file_browser_get_view(context->file_browser));
     view_dispatcher_add_view(
         context->view_dispatcher, VIEW_Transfer, loading_get_view(context->loading_screen));
+    view_dispatcher_add_view(context->view_dispatcher, VIEW_Done, text_box_get_view(context->text_box));
 
     // Set sane defaults for options
     context->encryption = false;
@@ -107,6 +121,10 @@ whistle_context* context_alloc() {
     subghz_setting_load(context->subghz_settings, EXT_PATH("subghz/assets/setting_user"));
 
     return context;
+
+err_timer:
+    furi_record_close(RECORD_GUI);
+    free(context->gui);
 
 err_gui:
     loading_free(context->loading_screen);
@@ -124,6 +142,9 @@ err_subghz:
     variable_item_list_free(context->option_list);
 
 err_option_list:
+    text_box_free(context->text_box);
+
+err_textbox_alloc:
     menu_free(context->menu);
 
 err_menu_alloc:

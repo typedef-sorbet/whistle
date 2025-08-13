@@ -9,6 +9,7 @@ typedef enum {
     SCENE_Options,
     SCENE_FileBrowser,
     SCENE_Transfer,
+    SCENE_Done,
     SCENE_count
 } whistle_scene_id;
 
@@ -17,6 +18,7 @@ typedef enum {
     VIEW_Options,
     VIEW_FileBrowser,
     VIEW_Transfer,
+    VIEW_Done,
     VIEW_count
 } whistle_view_id;
 

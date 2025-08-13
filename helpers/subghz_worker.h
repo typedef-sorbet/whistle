@@ -1,3 +1,4 @@
+#include "gui/view_dispatcher.h"
 #include <furi/core/thread.h>
 #include <furi/core/timer.h>
 #include <lib/subghz/subghz_tx_rx_worker.h>
@@ -18,6 +19,7 @@ typedef enum {
     EVENT_SubGhzWorker_InputData,
     EVENT_SubGhzWorker_RxData,
     EVENT_SubGhzWorker_PacketReady,
+    EVENT_SubGhzWorker_Done,
     EVENT_SubGhzWorker_count
 } subghz_worker_event_type;
 
@@ -45,6 +47,8 @@ typedef struct {
     const SubGhzDevice* subghz_device;
     FuriTimer *recv_timer;
 
+    SceneManager *scene_manager;
+
     // TODO rightsize
     size_t packet_buffer_ptr;
     size_t sentinel_offset;
@@ -56,7 +60,7 @@ typedef struct {
 subghz_worker_event subghz_worker_get_event(subghz_worker* instance);
 
 subghz_worker*
-    subghz_worker_alloc(const SubGhzDevice* device, whistle_mode mode, FuriString* path);
+    subghz_worker_alloc(const SubGhzDevice* device, whistle_mode mode, FuriString* path, void* context, FuriThreadStateCallback thread_callback);
 
 void subghz_worker_free(subghz_worker* instance);
 

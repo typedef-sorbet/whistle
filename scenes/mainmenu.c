@@ -5,8 +5,6 @@
 void mainmenu_selection_callback(void* _context, uint32_t choice) {
     TRACE;
 
-    FURI_LOG_T(TAG, __FUNCTION__);
-
     whistle_context* context = (whistle_context*)_context;
 
     switch(choice) {

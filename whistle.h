@@ -12,6 +12,7 @@
 
 #include <gui/icon_i.h>
 #include <enums.h>
+#include "gui/modules/text_box.h"
 #include "whistle_icons.h"
 
 #pragma once
@@ -34,6 +35,7 @@ typedef struct {
     VariableItemList* option_list;
     FileBrowser* file_browser;
     Loading* loading_screen;
+    TextBox* text_box;
 
     // Configuration
     whistle_mode mode;
@@ -47,6 +49,9 @@ typedef struct {
 
     // Storage handle
     Storage *storage;
+
+    // Done auto-advance timer
+    FuriTimer *timer;
 
     // ...
 } whistle_context;
